@@ -1,0 +1,4 @@
+codice_docente;nome;cognome;email;giorno;ora;inizio;fine;classe;materia;aula;tipo
+ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;1;08:00;09:00;3A;Italiano;12;lezione
+ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;2;09:00;10:00;;;;disponibilita
+BIANCHI-L;Laura;Bianchi;laura.bianchi@example.edu.it;Lunedi;1;08:00;09:00;4B;Matematica;18;lezione

@@ -1,0 +1,4 @@
+giorno;ora;inizio;fine;classe;materia;aula;tipo
+Lunedi;1;08:00;09:00;3A;Italiano;12;lezione
+Lunedi;2;09:00;10:00;;;;disponibilita
+Martedi;1;08:00;09:00;4B;Italiano;18;lezione
