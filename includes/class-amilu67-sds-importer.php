@@ -96,9 +96,18 @@ class AMILU67_SDS_Importer {
             return "Riga $line: giorno/ora non validi.";
         }
         $activity_raw = strtolower( remove_accents( trim( (string) $this->value( $row, array( 'tipo', 'activity', 'attivita' ) ) ) ) );
-        $activity = in_array( $activity_raw, array( 'disponibilita', 'disponibilità', 'availability', 'disp' ), true ) ? 'availability' : 'lesson';
+        $activity_map = array(
+            'lezione' => 'lesson', 'lesson' => 'lesson',
+            'disponibilita' => 'disposition', 'availability' => 'disposition', 'disp' => 'disposition', 'disposizione' => 'disposition', 'disposizione_contrattuale' => 'disposition',
+            'potenziamento' => 'potenziamento', 'potenziamento_programmato' => 'potenziamento',
+            'potenziamento_disponibile' => 'potenziamento_disponibile', 'potenziamento_utilizzabile' => 'potenziamento_disponibile',
+            'recupero' => 'recovery', 'recupero_permesso' => 'recovery',
+            'ora_eccedente' => 'extra', 'eccedente' => 'extra', 'extra' => 'extra',
+            'compresenza' => 'compresenza', 'altra_sede' => 'other_service', 'servizio_altra_sede' => 'other_service', 'non_disponibile' => 'not_available'
+        );
+        $activity = $activity_map[ $activity_raw ] ?? 'lesson';
         $class = trim( (string) $this->value( $row, array( 'classe', 'class', 'class_name' ) ) );
-        if ( 'lesson' === $activity && '' === $class ) {
+        if ( in_array( $activity, array( 'lesson', 'compresenza', 'potenziamento' ), true ) && '' === $class ) {
             return "Riga $line: per una lezione è necessaria la classe.";
         }
         $ok = $this->db->replace_schedule_slot(

@@ -32,8 +32,9 @@ document.addEventListener('click', async (e) => {
   const updateRow = (row) => {
     const select = row.querySelector('[data-activity-select]');
     if (!select) return;
-    row.classList.remove('is-empty', 'is-lesson', 'is-availability');
-    row.classList.add(select.value === 'lesson' ? 'is-lesson' : select.value === 'availability' ? 'is-availability' : 'is-empty');
+    row.className = row.className.replace(/\bis-[a-z_-]+\b/g, '').trim();
+    const util = ['availability','disposition','potenziamento_disponibile','recovery','extra'].includes(select.value);
+    row.classList.add(select.value === 'lesson' ? 'is-lesson' : util ? 'is-availability' : select.value ? 'is-other' : 'is-empty');
   };
 
   const updateTabSummary = (day) => {
@@ -42,15 +43,18 @@ document.addEventListener('click', async (e) => {
     if (!panel || !tab) return;
     let lessons = 0;
     let availability = 0;
+    let other = 0;
     panel.querySelectorAll('[data-activity-select]').forEach((select) => {
       if (select.value === 'lesson') lessons++;
-      if (select.value === 'availability') availability++;
+      if (['availability','disposition','potenziamento_disponibile','recovery','extra'].includes(select.value)) availability++;
+      else if (select.value && select.value !== 'lesson') other++;
     });
     const small = tab.querySelector('small');
     if (!small) return;
     const parts = [];
     if (lessons) parts.push(`${lessons} lez.`);
-    if (availability) parts.push(`${availability} disp.`);
+    if (availability) parts.push(`${availability} util.`);
+    if (other) parts.push(`${other} altre`);
     small.textContent = parts.length ? parts.join(' · ') : 'Nessuna ora';
   };
 

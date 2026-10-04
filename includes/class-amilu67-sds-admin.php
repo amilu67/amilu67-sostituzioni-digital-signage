@@ -26,6 +26,8 @@ class AMILU67_SDS_Admin {
         add_action( 'admin_post_amilu67_sds_delete_absent_class', array( $this, 'delete_absent_class' ) );
         add_action( 'admin_post_amilu67_sds_assign_substitute', array( $this, 'assign_substitute' ) );
         add_action( 'admin_post_amilu67_sds_save_settings', array( $this, 'save_settings' ) );
+        add_action( 'admin_post_amilu67_sds_add_recovery', array( $this, 'add_recovery' ) );
+        add_action( 'admin_post_amilu67_sds_delete_recovery', array( $this, 'delete_recovery' ) );
     }
 
     public function menu(): void {
@@ -36,7 +38,7 @@ class AMILU67_SDS_Admin {
         add_submenu_page( 'amilu67-sds-signage', 'Orario e disponibilità', 'Orario e disponibilità', $cap, 'amilu67-sds-schedule', array( $this, 'schedule_page' ) );
         add_submenu_page( 'amilu67-sds-signage', 'Assenze', 'Assenze', $cap, 'amilu67-sds-absences', array( $this, 'absences_page' ) );
         add_submenu_page( 'amilu67-sds-signage', 'Sostituzioni', 'Sostituzioni', $cap, 'amilu67-sds-substitutions', array( $this, 'substitutions_page' ) );
-        add_submenu_page( 'amilu67-sds-signage', 'Impostazioni schermo', 'Impostazioni schermo', $cap, 'amilu67-sds-settings', array( $this, 'settings_page' ) );
+        add_submenu_page( 'amilu67-sds-signage', 'Impostazioni e criteri', 'Impostazioni e criteri', $cap, 'amilu67-sds-settings', array( $this, 'settings_page' ) );
     }
 
     public function assets( string $hook ): void {
@@ -121,7 +123,7 @@ class AMILU67_SDS_Admin {
             <section class="amilu67-sds-panel amilu67-sds-quick-panel">
                 <div class="amilu67-sds-panel-title"><div><h2>Azioni rapide</h2><p>Flusso consigliato per la segreteria.</p></div></div>
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=amilu67-sds-absences' ) ); ?>"><span class="dashicons dashicons-calendar"></span><div><strong>Registra un’assenza</strong><small>Genera automaticamente le ore da coprire.</small></div></a>
-                <a href="<?php echo esc_url( admin_url( 'admin.php?page=amilu67-sds-substitutions' ) ); ?>"><span class="dashicons dashicons-randomize"></span><div><strong>Assegna i sostituti</strong><small>Priorità a disponibilità e docenti liberati.</small></div></a>
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=amilu67-sds-substitutions' ) ); ?>"><span class="dashicons dashicons-randomize"></span><div><strong>Assegna i sostituti</strong><small>Usa disponibilità qualificate e criteri configurabili.</small></div></a>
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=amilu67-sds-schedule' ) ); ?>"><span class="dashicons dashicons-upload"></span><div><strong>Importa orario</strong><small>Caricamento singolo o bulk in CSV.</small></div></a>
             </section>
         </div>
@@ -130,31 +132,50 @@ class AMILU67_SDS_Admin {
     }
 
     public function teachers_page(): void {
-        $this->page_header( 'Docenti', 'Anagrafica essenziale usata per orari, disponibilità e sostituzioni.' );
+        $this->page_header( 'Docenti', 'Anagrafica contrattuale, disponibilità alle ore eccedenti e recuperi dei permessi brevi.' );
         $teachers = $this->db->list_teachers();
+        $recoveries = $this->db->list_recovery_accounts();
         ?>
         <div class="amilu67-sds-grid-sidebar">
             <section class="amilu67-sds-panel">
                 <h2>Aggiungi o aggiorna docente</h2>
+                <p class="description">Per aggiornare un docente esistente usa lo stesso codice docente.</p>
                 <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="amilu67-sds-form-grid">
                     <input type="hidden" name="action" value="amilu67_sds_save_teacher"><?php wp_nonce_field( 'amilu67_sds_save_teacher' ); ?>
                     <label><span>Codice docente *</span><input name="code" required placeholder="es. ROSSI-M"></label>
                     <label><span>Nome</span><input name="first_name"></label>
                     <label><span>Cognome *</span><input name="last_name" required></label>
                     <label><span>Email</span><input type="email" name="email"></label>
+                    <label><span>Tipo posto</span><select name="post_type"><option value="common">Posto comune</option><option value="support">Sostegno</option></select></label>
+                    <label><span>Rapporto di servizio</span><select name="employment_type"><option value="full_time">Tempo pieno</option><option value="part_time">Part-time</option><option value="coe">COE / più sedi</option></select></label>
+                    <label><span>Ore settimanali contrattuali</span><input type="number" name="weekly_hours" min="0" max="40" step="0.5" value="18"></label>
+                    <label><span>Altra sede/scuola</span><input name="other_school" placeholder="opzionale"></label>
+                    <label><span>Massimo ore eccedenti / settimana</span><input type="number" name="max_extra_weekly" min="0" max="12" step="0.5" value="6"></label>
+                    <label class="amilu67-sds-check"><input type="checkbox" name="extra_hours_opt_in" value="1"> <span>Disponibile volontariamente per ore eccedenti</span></label>
+                    <label class="amilu67-sds-span-2"><span>Note organizzative</span><input name="notes" placeholder="es. vincoli di sede, giorni non utilizzabili…"></label>
                     <label class="amilu67-sds-check"><input type="checkbox" name="active" value="1" checked> <span>Docente attivo</span></label>
                     <div><button class="button button-primary">Salva docente</button></div>
                 </form>
             </section>
             <section class="amilu67-sds-panel">
                 <div class="amilu67-sds-panel-title"><div><h2>Elenco docenti</h2><p><?php echo esc_html( count( $teachers ) . ' docenti registrati' ); ?></p></div></div>
-                <div class="amilu67-sds-table-wrap"><table class="widefat striped amilu67-sds-table"><thead><tr><th>Codice</th><th>Docente</th><th>Email</th><th>Stato</th><th></th></tr></thead><tbody>
-                <?php foreach ( $teachers as $teacher ) : ?>
-                    <tr><td><code><?php echo esc_html( $teacher['code'] ); ?></code></td><td><strong><?php echo esc_html( trim( $teacher['last_name'] . ' ' . $teacher['first_name'] ) ); ?></strong></td><td><?php echo esc_html( $teacher['email'] ); ?></td><td><span class="amilu67-sds-status <?php echo $teacher['active'] ? 'is-assigned' : 'is-cancelled'; ?>"><?php echo $teacher['active'] ? 'Attivo' : 'Disattivo'; ?></span></td><td class="amilu67-sds-actions"><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Eliminare il docente e il relativo orario?')"><input type="hidden" name="action" value="amilu67_sds_delete_teacher"><input type="hidden" name="id" value="<?php echo esc_attr( $teacher['id'] ); ?>"><?php wp_nonce_field( 'amilu67_sds_delete_teacher' ); ?><button class="button-link-delete">Elimina</button></form></td></tr>
+                <div class="amilu67-sds-table-wrap"><table class="widefat striped amilu67-sds-table"><thead><tr><th>Docente</th><th>Profilo</th><th>Ore</th><th>Eccedenti</th><th>Stato</th><th></th></tr></thead><tbody>
+                <?php foreach ( $teachers as $teacher ) : $recovery = $this->db->recovery_status( (int) $teacher['id'] ); $planned = $this->db->teacher_weekly_service_hours( (int) $teacher['id'] ); $extra_done = $this->db->weekly_extra_hours( (int) $teacher['id'], wp_date( 'Y-m-d' ) ); ?>
+                    <tr><td><strong><?php echo esc_html( trim( $teacher['last_name'] . ' ' . $teacher['first_name'] ) ); ?></strong><br><code><?php echo esc_html( $teacher['code'] ); ?></code></td><td><?php echo esc_html( 'support' === $teacher['post_type'] ? 'Sostegno' : 'Posto comune' ); ?> · <?php echo esc_html( $this->employment_label( $teacher['employment_type'] ) ); ?><?php if ( $teacher['other_school'] ) : ?><br><small><?php echo esc_html( $teacher['other_school'] ); ?></small><?php endif; ?></td><td><strong><?php echo esc_html( number_format_i18n( (float) $planned, 1 ) . ' / ' . rtrim( rtrim( (string) $teacher['weekly_hours'], '0' ), '.' ) . ' h' ); ?></strong><br><small>programmate / contrattuali</small><?php if ( $recovery['remaining'] > 0 ) : ?><br><span class="amilu67-sds-status is-warning">Recupero <?php echo esc_html( number_format_i18n( $recovery['remaining'], 1 ) ); ?> h</span><?php endif; ?></td><td><?php echo $teacher['extra_hours_opt_in'] ? esc_html( number_format_i18n( $extra_done, 1 ) . ' / ' . rtrim( rtrim( (string) $teacher['max_extra_weekly'], '0' ), '.' ) . ' h questa settimana' ) : 'Non disponibile'; ?></td><td><span class="amilu67-sds-status <?php echo $teacher['active'] ? 'is-assigned' : 'is-cancelled'; ?>"><?php echo $teacher['active'] ? 'Attivo' : 'Disattivo'; ?></span></td><td class="amilu67-sds-actions"><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Eliminare il docente e i dati collegati?')"><input type="hidden" name="action" value="amilu67_sds_delete_teacher"><input type="hidden" name="id" value="<?php echo esc_attr( $teacher['id'] ); ?>"><?php wp_nonce_field( 'amilu67_sds_delete_teacher' ); ?><button class="button-link-delete">Elimina</button></form></td></tr>
                 <?php endforeach; ?>
-                <?php if ( ! $teachers ) : ?><tr><td colspan="5">Nessun docente registrato.</td></tr><?php endif; ?>
+                <?php if ( ! $teachers ) : ?><tr><td colspan="6">Nessun docente registrato.</td></tr><?php endif; ?>
                 </tbody></table></div>
             </section>
+        </div>
+        <div class="amilu67-sds-grid-2 amilu67-sds-import-grid">
+            <section class="amilu67-sds-panel"><div class="amilu67-sds-panel-title"><div><h2>Recupero permessi brevi</h2><p>Registra le ore da recuperare; il motore le propone solo nelle fasce marcate “Recupero permesso breve”.</p></div></div>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="amilu67-sds-form-grid"><input type="hidden" name="action" value="amilu67_sds_add_recovery"><?php wp_nonce_field( 'amilu67_sds_add_recovery' ); ?>
+                    <label><span>Docente</span><select name="teacher_id" required><option value="">Seleziona…</option><?php foreach ( $teachers as $t ) : ?><option value="<?php echo esc_attr( $t['id'] ); ?>"><?php echo esc_html( $t['last_name'].' '.$t['first_name'] ); ?></option><?php endforeach; ?></select></label>
+                    <label><span>Ore da recuperare</span><input type="number" name="hours_due" min="0.5" max="99" step="0.5" value="1" required></label>
+                    <label><span>Scadenza</span><input type="date" name="due_date"></label><label><span>Nota</span><input name="note"></label><div><button class="button button-primary">Registra recupero</button></div>
+                </form>
+            </section>
+            <section class="amilu67-sds-panel"><div class="amilu67-sds-panel-title"><div><h2>Recuperi attivi</h2><p>Il residuo viene diminuito dalle sostituzioni assegnate come recupero.</p></div></div><div class="amilu67-sds-table-wrap"><table class="widefat striped amilu67-sds-table"><thead><tr><th>Docente</th><th>Ore</th><th>Scadenza</th><th></th></tr></thead><tbody><?php foreach ( $recoveries as $r ) : ?><tr><td><?php echo esc_html( $r['last_name'].' '.$r['first_name'] ); ?></td><td><?php echo esc_html( number_format_i18n( (float) $r['hours_due'], 1 ) ); ?></td><td><?php echo esc_html( $r['due_date'] ?: '—' ); ?></td><td><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"><input type="hidden" name="action" value="amilu67_sds_delete_recovery"><input type="hidden" name="id" value="<?php echo esc_attr( $r['id'] ); ?>"><?php wp_nonce_field( 'amilu67_sds_delete_recovery' ); ?><button class="button-link-delete">Rimuovi</button></form></td></tr><?php endforeach; ?><?php if ( ! $recoveries ) : ?><tr><td colspan="4">Nessun recupero attivo.</td></tr><?php endif; ?></tbody></table></div></section>
         </div>
         <?php $this->page_end();
     }
@@ -180,7 +201,7 @@ class AMILU67_SDS_Admin {
                 <div>
                     <span class="amilu67-sds-section-kicker">Inserimento manuale</span>
                     <h2>Editor tabellare settimanale</h2>
-                    <p>Seleziona un docente e compila le ore da lunedì a sabato. Le righe vuote vengono ignorate; scegli “Disponibilità” per rendere il docente prioritario nelle sostituzioni.</p>
+                    <p>Seleziona un docente e compila le ore da lunedì a sabato. Le righe vuote non sono disponibilità. Qualifica ogni ora: disposizione contrattuale, potenziamento, recupero, ore eccedenti o altri servizi.</p>
                 </div>
                 <form method="get" class="amilu67-sds-teacher-picker">
                     <input type="hidden" name="page" value="amilu67-sds-schedule">
@@ -239,9 +260,10 @@ class AMILU67_SDS_Admin {
                                             <td><input type="time" name="schedule[<?php echo esc_attr( $day ); ?>][<?php echo esc_attr( $period ); ?>][end_time]" value="<?php echo esc_attr( ! empty( $slot['end_time'] ) ? substr( $slot['end_time'], 0, 5 ) : '' ); ?>" data-detail-field></td>
                                             <td>
                                                 <select name="schedule[<?php echo esc_attr( $day ); ?>][<?php echo esc_attr( $period ); ?>][activity]" data-activity-select>
-                                                    <option value="" <?php selected( $activity, '' ); ?>>— Vuota —</option>
-                                                    <option value="lesson" <?php selected( $activity, 'lesson' ); ?>>Lezione</option>
-                                                    <option value="availability" <?php selected( $activity, 'availability' ); ?>>Disponibilità</option>
+                                                    <option value="" <?php selected( $activity, '' ); ?>>— Ora buca / non in servizio —</option>
+                                                    <?php foreach ( AMILU67_SDS_DB::schedule_activity_labels() as $activity_key => $activity_label ) : ?>
+                                                        <option value="<?php echo esc_attr( $activity_key ); ?>" <?php selected( $activity, $activity_key ); ?>><?php echo esc_html( $activity_label ); ?></option>
+                                                    <?php endforeach; ?>
                                                 </select>
                                             </td>
                                             <td><input type="text" name="schedule[<?php echo esc_attr( $day ); ?>][<?php echo esc_attr( $period ); ?>][class_name]" value="<?php echo esc_attr( $slot['class_name'] ?? '' ); ?>" placeholder="es. 3A" data-lesson-field></td>
@@ -256,7 +278,7 @@ class AMILU67_SDS_Admin {
                     <?php endfor; ?>
 
                     <div class="amilu67-sds-editor-footer">
-                        <div class="amilu67-sds-editor-legend"><span><i class="is-lesson"></i> Lezione</span><span><i class="is-availability"></i> Disponibilità</span><span><i class="is-empty"></i> Ora non impostata</span></div>
+                        <div class="amilu67-sds-editor-legend"><span><i class="is-lesson"></i> Lezione</span><span><i class="is-availability"></i> Disponibilità qualificata</span><span><i class="is-empty"></i> Ora non impostata</span></div>
                         <button class="button button-primary button-hero"><span class="dashicons dashicons-saved"></span> Salva orario settimanale</button>
                     </div>
                 </form>
@@ -287,11 +309,11 @@ class AMILU67_SDS_Admin {
             </section>
         </div>
         <section class="amilu67-sds-panel">
-            <div class="amilu67-sds-panel-title"><div><h2>Orario caricato</h2><p>“Disponibilità” indica un’ora utilizzabile prioritariamente per le sostituzioni.</p></div>
+            <div class="amilu67-sds-panel-title"><div><h2>Orario caricato</h2><p>Il tipo di attività determina se e perché il docente può essere proposto per una sostituzione.</p></div>
                 <form method="get"><input type="hidden" name="page" value="amilu67-sds-schedule"><select name="teacher_id" onchange="this.form.submit()"><option value="0">Tutti i docenti</option><?php foreach ( $teachers as $t ) : ?><option value="<?php echo esc_attr( $t['id'] ); ?>" <?php selected( $filter_teacher, (int) $t['id'] ); ?>><?php echo esc_html( $t['last_name'] . ' ' . $t['first_name'] ); ?></option><?php endforeach; ?></select></form>
             </div>
             <div class="amilu67-sds-table-wrap"><table class="widefat striped amilu67-sds-table"><thead><tr><th>Docente</th><th>Giorno</th><th>Ora</th><th>Fascia</th><th>Classe</th><th>Materia</th><th>Aula</th><th>Tipo</th></tr></thead><tbody>
-            <?php foreach ( $schedule as $s ) : ?><tr><td><strong><?php echo esc_html( $s['last_name'] . ' ' . $s['first_name'] ); ?></strong></td><td><?php echo esc_html( $this->weekday_label( (int) $s['weekday'] ) ); ?></td><td><?php echo esc_html( $s['period'] . 'ª' ); ?></td><td><?php echo esc_html( $this->time_range( $s['start_time'], $s['end_time'] ) ); ?></td><td><?php echo esc_html( $s['class_name'] ?: '—' ); ?></td><td><?php echo esc_html( $s['subject'] ?: '—' ); ?></td><td><?php echo esc_html( $s['room'] ?: '—' ); ?></td><td><span class="amilu67-sds-status <?php echo 'availability' === $s['activity'] ? 'is-availability' : 'is-assigned'; ?>"><?php echo 'availability' === $s['activity'] ? 'Disponibilità' : 'Lezione'; ?></span></td></tr><?php endforeach; ?>
+            <?php foreach ( $schedule as $s ) : ?><tr><td><strong><?php echo esc_html( $s['last_name'] . ' ' . $s['first_name'] ); ?></strong></td><td><?php echo esc_html( $this->weekday_label( (int) $s['weekday'] ) ); ?></td><td><?php echo esc_html( $s['period'] . 'ª' ); ?></td><td><?php echo esc_html( $this->time_range( $s['start_time'], $s['end_time'] ) ); ?></td><td><?php echo esc_html( $s['class_name'] ?: '—' ); ?></td><td><?php echo esc_html( $s['subject'] ?: '—' ); ?></td><td><?php echo esc_html( $s['room'] ?: '—' ); ?></td><td><span class="amilu67-sds-status <?php echo 'availability' === $s['activity'] ? 'is-availability' : 'is-assigned'; ?>"><?php echo esc_html( AMILU67_SDS_DB::schedule_activity_labels()[ $s['activity'] ] ?? ucfirst( $s['activity'] ) ); ?></span></td></tr><?php endforeach; ?>
             <?php if ( ! $schedule ) : ?><tr><td colspan="8">Nessun orario caricato.</td></tr><?php endif; ?></tbody></table></div>
         </section>
         <?php $this->page_end();
@@ -347,7 +369,7 @@ class AMILU67_SDS_Admin {
     }
 
     public function substitutions_page(): void {
-        $this->page_header( 'Sostituzioni', 'I candidati sono ordinati dando priorità alle ore di disponibilità e ai docenti liberati da classi assenti.' );
+        $this->page_header( 'Sostituzioni', 'Il motore propone solo docenti con una disponibilità qualificata nell’orario; le semplici ore buche non sono considerate utilizzabili.' );
         $raw_date = isset( $_GET['date'] ) && is_string( $_GET['date'] ) ? sanitize_text_field( wp_unslash( $_GET['date'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $date = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw_date ) ? $raw_date : wp_date( 'Y-m-d' );
         // Ricalcola sempre il prospetto dalla fonte autorevole (assenze + orario).
@@ -362,7 +384,7 @@ class AMILU67_SDS_Admin {
             <div class="amilu67-sds-substitution-list">
                 <?php foreach ( $rows as $row ) :
                     $candidates = 'not_required' === $row['status'] ? array() : $this->recommender->candidates_for_substitution( $row );
-                    $manual = 'not_required' === $row['status'] ? array() : $this->manual_candidates( $row, $candidates );
+                    $manual = array();
                     ?>
                     <article class="amilu67-sds-sub-card is-<?php echo esc_attr( $row['status'] ); ?>">
                         <div class="amilu67-sds-sub-time"><strong><?php echo esc_html( $row['period'] . 'ª' ); ?></strong><span><?php echo esc_html( $this->time_range( $row['start_time'], $row['end_time'] ) ); ?></span></div>
@@ -377,12 +399,12 @@ class AMILU67_SDS_Admin {
                                     <input type="hidden" name="action" value="amilu67_sds_assign_substitute"><input type="hidden" name="id" value="<?php echo esc_attr( $row['id'] ); ?>"><input type="hidden" name="date" value="<?php echo esc_attr( $date ); ?>"><?php wp_nonce_field( 'amilu67_sds_assign_substitute' ); ?>
                                     <label><span>Sostituto</span><select name="teacher_id"><option value="0">— Da assegnare —</option>
                                         <?php if ( $candidates ) : ?><optgroup label="Consigliati"><?php foreach ( $candidates as $c ) : ?><option value="<?php echo esc_attr( $c['id'] ); ?>" <?php selected( (int) $row['substitute_teacher_id'], (int) $c['id'] ); ?>>★ <?php echo esc_html( $c['last_name'] . ' ' . $c['first_name'] . ' — ' . $c['reason'] ); ?></option><?php endforeach; ?></optgroup><?php endif; ?>
-                                        <?php if ( $manual ) : ?><optgroup label="Altri docenti non impegnati nell’orario caricato"><?php foreach ( $manual as $c ) : ?><option value="<?php echo esc_attr( $c['id'] ); ?>" <?php selected( (int) $row['substitute_teacher_id'], (int) $c['id'] ); ?>><?php echo esc_html( $c['last_name'] . ' ' . $c['first_name'] ); ?></option><?php endforeach; ?></optgroup><?php endif; ?>
+                                        
                                     </select></label>
                                     <label><span>Nota schermo</span><input name="note" value="<?php echo esc_attr( $row['note'] ); ?>" placeholder="opzionale"></label>
                                     <button class="button button-primary">Salva assegnazione</button>
                                 </form>
-                                <?php if ( $candidates ) : ?><div class="amilu67-sds-candidate-hint"><strong>Prima scelta:</strong> <?php echo esc_html( $candidates[0]['last_name'] . ' ' . $candidates[0]['first_name'] ); ?> <span><?php echo esc_html( $candidates[0]['reason'] ); ?></span></div><?php else : ?><div class="amilu67-sds-candidate-hint is-warning">Nessuna disponibilità prioritaria rilevata.</div><?php endif; ?>
+                                <?php if ( $candidates ) : ?><div class="amilu67-sds-candidate-hint"><strong>Prima scelta:</strong> <?php echo esc_html( $candidates[0]['last_name'] . ' ' . $candidates[0]['first_name'] ); ?> <span><?php echo esc_html( $candidates[0]['reason'] ); ?></span><?php if ( $candidates[0]['warning'] ) : ?><br><strong class="amilu67-sds-warning-text">⚠ <?php echo esc_html( $candidates[0]['warning'] ); ?></strong><?php endif; ?></div><?php else : ?><div class="amilu67-sds-candidate-hint is-warning">Nessun docente con disponibilità qualificata rilevato.</div><?php endif; ?><?php if ( ! empty( $row['assignment_reason'] ) ) : ?><div class="amilu67-sds-assignment-meta"><strong>Motivo assegnazione:</strong> <?php echo esc_html( $row['assignment_reason'] ); ?><?php if ( ! empty( $row['assignment_warning'] ) ) : ?><br><span>⚠ <?php echo esc_html( $row['assignment_warning'] ); ?></span><?php endif; ?></div><?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </article>
@@ -405,9 +427,10 @@ class AMILU67_SDS_Admin {
     }
 
     public function settings_page(): void {
-        $this->page_header( 'Impostazioni schermo', 'Personalizza il monitor mantenendo leggibilità, contrasto e coerenza con il design system della scuola.' );
+        $this->page_header( 'Impostazioni e criteri', 'Personalizza il monitor e configura i criteri organizzativi usati dal motore di proposta.' );
         $s = $this->db->settings();
         ?>
+        <div class="amilu67-sds-compliance-note"><strong>Criteri organizzativi configurabili</strong><span>Il plugin supporta la gestione operativa ma non sostituisce CCNL, contrattazione integrativa, disposizioni del dirigente o valutazioni sul singolo caso.</span></div>
         <div class="amilu67-sds-grid-sidebar">
             <section class="amilu67-sds-panel">
                 <form class="amilu67-sds-form-grid" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -418,7 +441,9 @@ class AMILU67_SDS_Admin {
                     <label><span>Visualizzazione nomi</span><select name="name_format"><option value="surname_initial" <?php selected( $s['name_format'], 'surname_initial' ); ?>>Cognome + iniziale</option><option value="full" <?php selected( $s['name_format'], 'full' ); ?>>Nome e cognome</option><option value="surname_only" <?php selected( $s['name_format'], 'surname_only' ); ?>>Solo cognome</option></select></label>
                     <label><span>Colore principale</span><input type="color" name="accent" value="<?php echo esc_attr( sanitize_hex_color( $s['accent'] ) ?: '#0066cc' ); ?>"></label>
                     <label class="amilu67-sds-check"><input type="checkbox" name="show_pending" value="1" <?php checked( ! empty( $s['show_pending'] ) ); ?>> <span>Mostra sul monitor anche le sostituzioni non ancora assegnate</span></label>
-                    <label class="amilu67-sds-check amilu67-sds-span-2"><input type="checkbox" name="consider_free" value="1" <?php checked( ! empty( $s['consider_free'] ) ); ?>> <span>Tra i consigli considera anche docenti senza lezione in quella fascia (oltre a disponibilità esplicite e docenti liberati)</span></label>
+                    <label class="amilu67-sds-check amilu67-sds-span-2"><input type="checkbox" name="allow_freed_class" value="1" <?php checked( ! empty( $s['allow_freed_class'] ) ); ?>> <span>Consenti di proporre docenti liberati da una classe assente (criterio organizzativo d’istituto)</span></label>
+                    <label><span>Docenti di sostegno</span><select name="support_policy"><option value="warn" <?php selected( $s['support_policy'], 'warn' ); ?>>Mostra con avviso</option><option value="exclude" <?php selected( $s['support_policy'], 'exclude' ); ?>>Escludi dai consigli automatici</option></select></label>
+                    <div class="amilu67-sds-span-2 amilu67-sds-priority-box"><span class="amilu67-sds-field-title">Priorità dei criteri di sostituzione</span><p class="description">1 = priorità più alta. In caso di parità vengono usati materia, nome e avvisi di profilo.</p><?php $priority_labels = array( 'recovery'=>'Recupero permesso breve','disposition'=>'Disposizione contrattuale','potenziamento'=>'Potenziamento utilizzabile','freed'=>'Classe assente / docente liberato','extra'=>'Ora eccedente volontaria' ); $priority_current = array_flip( (array) $s['priority_order'] ); ?><div class="amilu67-sds-priority-grid"><?php foreach ( $priority_labels as $pk=>$pl ) : ?><label><span><?php echo esc_html( $pl ); ?></span><input type="number" name="priority_rank[<?php echo esc_attr( $pk ); ?>]" min="1" max="5" value="<?php echo esc_attr( isset( $priority_current[ $pk ] ) ? ( (int) $priority_current[ $pk ] + 1 ) : 5 ); ?>"></label><?php endforeach; ?></div></div>
                     <label class="amilu67-sds-span-2"><span>Messaggio a piè di schermo</span><input name="screen_note" value="<?php echo esc_attr( $s['screen_note'] ); ?>" placeholder="es. Rivolgersi alla vicepresidenza per variazioni"></label>
                     <div><button class="button button-primary">Salva impostazioni</button></div>
                 </form>
@@ -437,6 +462,13 @@ class AMILU67_SDS_Admin {
                 'first_name' => sanitize_text_field( wp_unslash( $_POST['first_name'] ?? '' ) ),
                 'last_name'  => sanitize_text_field( wp_unslash( $_POST['last_name'] ?? '' ) ),
                 'email'      => sanitize_email( wp_unslash( $_POST['email'] ?? '' ) ),
+                'post_type' => sanitize_key( wp_unslash( $_POST['post_type'] ?? 'common' ) ),
+                'employment_type' => sanitize_key( wp_unslash( $_POST['employment_type'] ?? 'full_time' ) ),
+                'weekly_hours' => (float) sanitize_text_field( wp_unslash( $_POST['weekly_hours'] ?? '18' ) ),
+                'other_school' => sanitize_text_field( wp_unslash( $_POST['other_school'] ?? '' ) ),
+                'extra_hours_opt_in' => ! empty( $_POST['extra_hours_opt_in'] ),
+                'max_extra_weekly' => (float) sanitize_text_field( wp_unslash( $_POST['max_extra_weekly'] ?? '6' ) ),
+                'notes' => sanitize_text_field( wp_unslash( $_POST['notes'] ?? '' ) ),
                 'active'     => ! empty( $_POST['active'] ),
             )
         );
@@ -467,7 +499,7 @@ class AMILU67_SDS_Admin {
             for ( $period = 1; $period <= 12; $period++ ) {
                 $slot = isset( $raw_schedule[ $day ][ $period ] ) && is_array( $raw_schedule[ $day ][ $period ] ) ? $raw_schedule[ $day ][ $period ] : array();
                 $activity = sanitize_key( $slot['activity'] ?? '' );
-                if ( ! in_array( $activity, array( '', 'lesson', 'availability' ), true ) ) {
+                if ( '' !== $activity && ! in_array( $activity, AMILU67_SDS_DB::schedule_activity_keys(), true ) ) {
                     $activity = '';
                 }
                 $class_name = sanitize_text_field( $slot['class_name'] ?? '' );
@@ -476,7 +508,7 @@ class AMILU67_SDS_Admin {
                 $start_time = $this->normalize_table_time( $slot['start_time'] ?? '' );
                 $end_time = $this->normalize_table_time( $slot['end_time'] ?? '' );
 
-                if ( 'lesson' === $activity && '' === $class_name ) {
+                if ( in_array( $activity, array( 'lesson', 'compresenza', 'potenziamento' ), true ) && '' === $class_name ) {
                     $errors[] = sprintf( '%s, %dª ora: inserisci la classe oppure lascia la riga vuota.', $this->weekday_label( $day ), $period );
                 }
                 if ( $start_time && $end_time && $start_time >= $end_time ) {
@@ -487,9 +519,9 @@ class AMILU67_SDS_Admin {
                     'activity'   => $activity,
                     'start_time' => $start_time,
                     'end_time'   => $end_time,
-                    'class_name' => 'availability' === $activity ? '' : $class_name,
-                    'subject'    => 'availability' === $activity ? '' : $subject,
-                    'room'       => 'availability' === $activity ? '' : $room,
+                    'class_name' => in_array( $activity, array( 'disposition', 'availability', 'recovery', 'extra', 'potenziamento_disponibile', 'not_available', 'other_service' ), true ) ? '' : $class_name,
+                    'subject'    => in_array( $activity, array( 'disposition', 'availability', 'recovery', 'extra', 'not_available', 'other_service' ), true ) ? '' : $subject,
+                    'room'       => in_array( $activity, array( 'disposition', 'availability', 'recovery', 'extra', 'not_available' ), true ) ? '' : $room,
                 );
             }
         }
@@ -626,16 +658,15 @@ class AMILU67_SDS_Admin {
         if ( ! $sub ) {
             $this->redirect( 'amilu67-sds-substitutions', 'Sostituzione non trovata.', 'error', array( 'date' => $date ) );
         }
+        $meta = array();
         if ( $teacher_id ) {
-            if ( $this->db->teacher_is_absent( $teacher_id, $sub['substitution_date'], (int) $sub['period'] ) || $this->db->teacher_is_already_substitute( $teacher_id, $sub['substitution_date'], (int) $sub['period'], $id ) ) {
-                $this->redirect( 'amilu67-sds-substitutions', 'Il docente selezionato non è disponibile in questa fascia.', 'error', array( 'date' => $date ) );
+            $candidate = $this->recommender->candidate_by_teacher( $sub, $teacher_id );
+            if ( ! $candidate ) {
+                $this->redirect( 'amilu67-sds-substitutions', 'Il docente non risulta utilizzabile secondo l’orario qualificato e i criteri configurati. Una semplice ora buca non è considerata disponibilità.', 'error', array( 'date' => $date ) );
             }
-            $slot = $this->db->get_teacher_slot( $teacher_id, $sub['substitution_date'], (int) $sub['period'] );
-            if ( $slot && 'lesson' === $slot['activity'] && ! $this->db->class_is_absent( $sub['substitution_date'], $slot['class_name'], (int) $sub['period'] ) ) {
-                $this->redirect( 'amilu67-sds-substitutions', 'Il docente selezionato è già impegnato in lezione.', 'error', array( 'date' => $date ) );
-            }
+            $meta = array( 'type' => $candidate['type'], 'reason' => $candidate['reason'], 'warning' => $candidate['warning'] );
         }
-        $ok = $this->db->assign_substitute( $id, $teacher_id ?: null, sanitize_text_field( wp_unslash( $_POST['note'] ?? '' ) ) );
+        $ok = $this->db->assign_substitute( $id, $teacher_id ?: null, sanitize_text_field( wp_unslash( $_POST['note'] ?? '' ) ), $meta );
         $this->redirect( 'amilu67-sds-substitutions', $ok ? 'Assegnazione aggiornata.' : 'Errore nell’assegnazione.', $ok ? 'success' : 'error', array( 'date' => $date ) );
     }
 
@@ -649,7 +680,10 @@ class AMILU67_SDS_Admin {
                 'refresh_seconds' => max( 10, min( 300, absint( $_POST['refresh_seconds'] ?? 30 ) ) ),
                 'name_format'     => in_array( sanitize_key( wp_unslash( $_POST['name_format'] ?? '' ) ), array( 'full', 'surname_initial', 'surname_only' ), true ) ? sanitize_key( wp_unslash( $_POST['name_format'] ?? '' ) ) : 'surname_initial',
                 'show_pending'    => ! empty( $_POST['show_pending'] ) ? 1 : 0,
-                'consider_free'   => ! empty( $_POST['consider_free'] ) ? 1 : 0,
+                'consider_free'   => 0,
+                'allow_freed_class' => ! empty( $_POST['allow_freed_class'] ) ? 1 : 0,
+                'support_policy' => in_array( sanitize_key( wp_unslash( $_POST['support_policy'] ?? 'warn' ) ), array( 'warn','exclude' ), true ) ? sanitize_key( wp_unslash( $_POST['support_policy'] ?? 'warn' ) ) : 'warn',
+                'priority_order' => $this->sanitize_priority_ranks( isset( $_POST['priority_rank'] ) && is_array( $_POST['priority_rank'] ) ? $_POST['priority_rank'] : array() ),
                 'screen_note'     => sanitize_text_field( wp_unslash( $_POST['screen_note'] ?? '' ) ),
                 'accent'          => sanitize_hex_color( wp_unslash( $_POST['accent'] ?? '#0066cc' ) ) ?: '#0066cc',
             )
@@ -657,24 +691,39 @@ class AMILU67_SDS_Admin {
         $this->redirect( 'amilu67-sds-settings', 'Impostazioni salvate.' );
     }
 
-    private function manual_candidates( array $substitution, array $recommended ): array {
-        $recommended_ids = array_map( 'intval', wp_list_pluck( $recommended, 'id' ) );
-        $out = array();
-        foreach ( $this->db->list_teachers( true ) as $t ) {
-            $id = (int) $t['id'];
-            if ( $id === (int) $substitution['absent_teacher_id'] || in_array( $id, $recommended_ids, true ) ) {
-                continue;
-            }
-            if ( $this->db->teacher_is_absent( $id, $substitution['substitution_date'], (int) $substitution['period'] ) || $this->db->teacher_is_already_substitute( $id, $substitution['substitution_date'], (int) $substitution['period'], (int) $substitution['id'] ) ) {
-                continue;
-            }
-            $slot = $this->db->get_teacher_slot( $id, $substitution['substitution_date'], (int) $substitution['period'] );
-            if ( $slot && 'lesson' === $slot['activity'] && ! $this->db->class_is_absent( $substitution['substitution_date'], $slot['class_name'], (int) $substitution['period'] ) ) {
-                continue;
-            }
-            $out[] = $t;
+    public function add_recovery(): void {
+        $this->guard();
+        check_admin_referer( 'amilu67_sds_add_recovery' );
+        $id = $this->db->add_recovery_account( absint( $_POST['teacher_id'] ?? 0 ), (float) sanitize_text_field( wp_unslash( $_POST['hours_due'] ?? '0' ) ), sanitize_text_field( wp_unslash( $_POST['due_date'] ?? '' ) ), sanitize_text_field( wp_unslash( $_POST['note'] ?? '' ) ) );
+        $this->redirect( 'amilu67-sds-teachers', $id ? 'Recupero registrato.' : 'Impossibile registrare il recupero.', $id ? 'success' : 'error' );
+    }
+
+    public function delete_recovery(): void {
+        $this->guard();
+        check_admin_referer( 'amilu67_sds_delete_recovery' );
+        $this->db->delete_recovery_account( absint( $_POST['id'] ?? 0 ) );
+        $this->redirect( 'amilu67-sds-teachers', 'Recupero rimosso.' );
+    }
+
+    private function sanitize_priority_ranks( $raw ): array {
+        $allowed = array( 'recovery','disposition','potenziamento','freed','extra' );
+        $raw = is_array( $raw ) ? wp_unslash( $raw ) : array();
+        $ranks = array();
+        foreach ( $allowed as $index => $key ) {
+            $ranks[ $key ] = max( 1, min( 5, absint( $raw[ $key ] ?? ( $index + 1 ) ) ) );
         }
-        return $out;
+        uasort( $ranks, static function( $a, $b ) { return $a <=> $b; } );
+        return array_keys( $ranks );
+    }
+
+    private function employment_label( string $type ): string {
+        return array( 'full_time'=>'Tempo pieno','part_time'=>'Part-time','coe'=>'COE / più sedi' )[ $type ] ?? $type;
+    }
+
+    private function manual_candidates( array $substitution, array $recommended ): array {
+        // Dalla 1.3.0 non vengono proposti docenti sulla sola base di una "ora buca".
+        // I candidati devono sempre provenire dal motore di disponibilità qualificata.
+        return array();
     }
 
 
@@ -694,25 +743,20 @@ class AMILU67_SDS_Admin {
     }
 
     private function schedule_day_summary( array $slots ): string {
-        $lessons = 0;
-        $availability = 0;
+        $counts = array();
         foreach ( $slots as $slot ) {
-            if ( 'lesson' === ( $slot['activity'] ?? '' ) ) {
-                ++$lessons;
-            } elseif ( 'availability' === ( $slot['activity'] ?? '' ) ) {
-                ++$availability;
-            }
+            $activity = (string) ( $slot['activity'] ?? '' );
+            if ( $activity ) { $counts[ $activity ] = ( $counts[ $activity ] ?? 0 ) + 1; }
         }
-        if ( ! $lessons && ! $availability ) {
-            return 'Nessuna ora';
-        }
+        if ( ! $counts ) { return 'Nessuna ora'; }
+        $lessons = (int) ( $counts['lesson'] ?? 0 );
+        $available = 0;
+        foreach ( array( 'availability','disposition','potenziamento_disponibile','recovery','extra' ) as $key ) { $available += (int) ( $counts[ $key ] ?? 0 ); }
         $parts = array();
-        if ( $lessons ) {
-            $parts[] = $lessons . ' lez.';
-        }
-        if ( $availability ) {
-            $parts[] = $availability . ' disp.';
-        }
+        if ( $lessons ) { $parts[] = $lessons . ' lez.'; }
+        if ( $available ) { $parts[] = $available . ' util.'; }
+        $other = array_sum( $counts ) - $lessons - $available;
+        if ( $other ) { $parts[] = $other . ' altre'; }
         return implode( ' · ', $parts );
     }
 

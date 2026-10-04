@@ -4,7 +4,7 @@ Tags: school, teachers, substitutions, timetable, digital signage
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 
 Manage teacher timetables, absences, availability and substitutions, with a large-screen digital signage view for schools.
@@ -18,10 +18,12 @@ Features include:
 * teacher management;
 * weekly timetable editing with a table-based editor from Monday to Saturday;
 * individual and bulk CSV timetable import;
-* teacher availability hours;
+* qualified service slots: contractual disposition, usable enhancement hours, short-permit recovery, voluntary extra hours, co-teaching and other-site service;
 * teacher absence registration with automatic generation of lessons that need coverage;
-* absent class registration, automatically making the affected teachers available;
-* substitute suggestions based on declared availability and teachers freed by absent classes;
+* absent class registration, with an institute-configurable rule for considering affected teachers as candidates;
+* configurable substitute priorities, with safeguards for support teachers, part-time/COE profiles and voluntary extra-hour limits;
+* short-permit recovery balances and deadlines;
+* weekly contractual/programmed-hours indicators and extra-hour counters;
 * a large-screen digital signage board with automatic refresh;
 * isolated styles designed to coexist with the Design Scuole Italia WordPress theme without loading a second copy of Bootstrap Italia.
 
@@ -37,12 +39,16 @@ The administration interface remains in Italian because the plugin is intended f
 
 == Changelog ==
 
-= 1.2.0 =
-* Renamed the plugin to `amilu67 Sostituzioni Digital Signage` to make the directory name distinctive.
-* Changed the requested WordPress.org slug and Text Domain to `amilu67-sostituzioni-digital-signage`.
-* Replaced the previous short internal prefix with the unique `amilu67_sds_` prefix for classes, constants, stored data, actions, menu slugs, shortcode, query vars, asset handles and REST namespace.
-* Added automatic migration of pre-release settings and custom-table data to the new prefixed storage.
-* Changed the plugin Author field to `amilu67` for a clear, non-affiliating directory identity.
+= 1.3.0 =
+* Uses the distinctive directory identity `amilu67 Sostituzioni Digital Signage`, requested slug `amilu67-sostituzioni-digital-signage`, and unique `amilu67_sds_` technical prefix.
+* Adds automatic migration of pre-release settings and custom-table data to the uniquely prefixed storage.
+* Adds qualified timetable activities: contractual disposition, scheduled/usable enhancement, short-permit recovery, voluntary extra hours, co-teaching, other-site service and explicit unavailability.
+* A blank timetable period is no longer treated as availability.
+* Adds teacher profiles for common/support posts, full-time/part-time/COE service, contractual weekly hours, other school/site and voluntary extra-hour availability.
+* Adds short-permit recovery balances, deadlines and remaining-hour indicators.
+* Adds configurable substitute priorities and institute policy for teachers freed by absent classes.
+* Adds support-teacher warnings/exclusion policy and part-time/COE compatibility warnings.
+* Adds assignment reason/warning tracking and actual-duration counters for recovery and extra-hour assignments when start/end times are available.
 
 = 1.1.5 =
 * Prepared a pre-release package for the initially assigned directory slug.
@@ -93,3 +99,4 @@ The administration interface remains in Italian because the plugin is intended f
 
 = 1.0.0 =
 * First release.
+

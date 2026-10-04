@@ -33,3 +33,15 @@
 .amilu67-sds-editor-empty{display:flex;align-items:center;justify-content:center;gap:16px;min-height:160px;margin:0 26px 26px;border:1px dashed #bacbd8;border-radius:12px;background:#f8fbfd;color:#496176}.amilu67-sds-editor-empty>.dashicons{width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:#e8f1f8;color:var(--amilu67-sds-blue);font-size:25px}.amilu67-sds-editor-empty strong{display:block;font-size:17px;color:var(--amilu67-sds-ink)}.amilu67-sds-editor-empty p{margin:4px 0 0;color:var(--amilu67-sds-muted)}.amilu67-sds-import-grid{margin-top:18px}
 @media(max-width:1150px){.amilu67-sds-day-tabs{grid-template-columns:repeat(3,1fr)}.amilu67-sds-editor-heading{align-items:flex-start!important;flex-direction:column}.amilu67-sds-teacher-picker{width:100%;min-width:0}.amilu67-sds-editor-toolbar{align-items:flex-start;flex-direction:column}.amilu67-sds-editor-actions{width:100%}}
 @media(max-width:720px){.amilu67-sds-week-form{padding:0 14px 18px}.amilu67-sds-schedule-editor .amilu67-sds-editor-heading{padding:18px 14px}.amilu67-sds-day-tabs{grid-template-columns:repeat(2,1fr)}.amilu67-sds-editor-footer{align-items:stretch;flex-direction:column}.amilu67-sds-editor-footer .button-hero{justify-content:center}.amilu67-sds-editor-actions .button{width:100%;justify-content:center}.amilu67-sds-editor-empty{margin:0 14px 18px;align-items:flex-start;padding:18px}}
+
+/* 1.3.0 - profili contrattuali e criteri */
+.amilu67-sds-status.is-warning{background:#fff3cd;color:#7a5200;border:1px solid #f2d98a}
+.amilu67-sds-warning-text{display:inline-block;margin-top:5px;color:#8a5a00}
+.amilu67-sds-assignment-meta{margin-top:9px;padding:8px 10px;border-radius:8px;background:#f3f7fb;color:#405d74;font-size:12px}
+.amilu67-sds-assignment-meta span{color:#8a5a00}
+.amilu67-sds-schedule-row.is-other td:first-child{box-shadow:inset 4px 0 0 #8c6bb1}.amilu67-sds-schedule-row.is-other td{background:#fdfbff}
+.amilu67-sds-form-grid small{display:block;margin-top:4px;color:var(--amilu67-sds-muted);font-weight:400}
+
+.amilu67-sds-priority-box{border:1px solid #dbe5ed;border-radius:10px;padding:14px;background:#f8fbfd}.amilu67-sds-field-title{display:block;font-weight:800;color:var(--amilu67-sds-ink);margin-bottom:3px}.amilu67-sds-priority-grid{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:8px;margin-top:10px}.amilu67-sds-priority-grid label{background:#fff;border:1px solid #d8e2ec;border-radius:8px;padding:9px}.amilu67-sds-priority-grid input{width:70px;margin-top:6px}@media(max-width:900px){.amilu67-sds-priority-grid{grid-template-columns:1fr 1fr}}
+
+.amilu67-sds-compliance-note{display:flex;gap:10px;align-items:flex-start;margin:0 0 18px;padding:13px 15px;border:1px solid #cbddeb;border-left:5px solid var(--amilu67-sds-blue);border-radius:9px;background:#f5faff}.amilu67-sds-compliance-note strong{white-space:nowrap;color:var(--amilu67-sds-blue-dark)}.amilu67-sds-compliance-note span{color:#496176}@media(max-width:720px){.amilu67-sds-compliance-note{flex-direction:column}}

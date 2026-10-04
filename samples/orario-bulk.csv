@@ -1,4 +1,7 @@
 codice_docente;nome;cognome;email;giorno;ora;inizio;fine;classe;materia;aula;tipo
 ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;1;08:00;09:00;3A;Italiano;12;lezione
-ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;2;09:00;10:00;;;;disponibilita
+ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;2;09:00;10:00;;;;disposizione
+ROSSI-M;Mario;Rossi;mario.rossi@example.edu.it;Lunedi;3;10:00;11:00;;;;recupero
 BIANCHI-L;Laura;Bianchi;laura.bianchi@example.edu.it;Lunedi;1;08:00;09:00;4B;Matematica;18;lezione
+BIANCHI-L;Laura;Bianchi;laura.bianchi@example.edu.it;Lunedi;2;09:00;10:00;;;;potenziamento_disponibile
+BIANCHI-L;Laura;Bianchi;laura.bianchi@example.edu.it;Mercoledi;3;10:00;11:00;;;;ora_eccedente

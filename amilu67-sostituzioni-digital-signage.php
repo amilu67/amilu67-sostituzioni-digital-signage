@@ -2,7 +2,7 @@
 /**
  * Plugin Name: amilu67 Sostituzioni Digital Signage
  * Description: Gestione orari, assenze, classi assenti, disponibilità e sostituzioni docenti con visualizzazione digital signage per istituti scolastici.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: amilu67
  * License: GPL-2.0-or-later
  * Text Domain: amilu67-sostituzioni-digital-signage
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'AMILU67_SDS_VERSION', '1.2.0' );
+define( 'AMILU67_SDS_VERSION', '1.3.0' );
 define( 'AMILU67_SDS_PLUGIN_SLUG', 'amilu67-sostituzioni-digital-signage' );
 define( 'AMILU67_SDS_FILE', __FILE__ );
 define( 'AMILU67_SDS_DIR', plugin_dir_path( __FILE__ ) );
@@ -88,6 +88,9 @@ final class AMILU67_SDS_Plugin {
                     'show_pending'      => 0,
                     'screen_note'       => '',
                     'consider_free'     => 0,
+                    'allow_freed_class' => 1,
+                    'support_policy'    => 'warn',
+                    'priority_order'    => array( 'recovery', 'disposition', 'potenziamento', 'freed', 'extra' ),
                     'accent'            => '#0066cc',
                 )
             );

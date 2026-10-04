@@ -1,4 +1,7 @@
 giorno;ora;inizio;fine;classe;materia;aula;tipo
 Lunedi;1;08:00;09:00;3A;Italiano;12;lezione
-Lunedi;2;09:00;10:00;;;;disponibilita
+Lunedi;2;09:00;10:00;;;;disposizione
+Lunedi;3;10:00;11:00;;;;recupero
 Martedi;1;08:00;09:00;4B;Italiano;18;lezione
+Martedi;2;09:00;10:00;;;;potenziamento_disponibile
+Mercoledi;3;10:00;11:00;;;;ora_eccedente

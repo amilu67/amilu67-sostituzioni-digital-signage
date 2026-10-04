@@ -15,6 +15,7 @@ class AMILU67_SDS_DB {
             'teacher_absences' => $p . 'teacher_absences',
             'absent_classes'   => $p . 'absent_classes',
             'substitutions'    => $p . 'substitutions',
+            'recovery'         => $p . 'recovery',
         );
     }
 
@@ -30,6 +31,13 @@ class AMILU67_SDS_DB {
             first_name varchar(120) NOT NULL DEFAULT '',
             last_name varchar(120) NOT NULL DEFAULT '',
             email varchar(190) NOT NULL DEFAULT '',
+            post_type varchar(30) NOT NULL DEFAULT 'common',
+            employment_type varchar(30) NOT NULL DEFAULT 'full_time',
+            weekly_hours decimal(5,2) NOT NULL DEFAULT 18.00,
+            other_school varchar(190) NOT NULL DEFAULT '',
+            extra_hours_opt_in tinyint(1) NOT NULL DEFAULT 0,
+            max_extra_weekly decimal(5,2) NOT NULL DEFAULT 6.00,
+            notes varchar(255) NOT NULL DEFAULT '',
             active tinyint(1) NOT NULL DEFAULT 1,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
@@ -98,6 +106,9 @@ class AMILU67_SDS_DB {
             subject varchar(160) NOT NULL DEFAULT '',
             room varchar(80) NOT NULL DEFAULT '',
             note varchar(255) NOT NULL DEFAULT '',
+            assignment_type varchar(40) NOT NULL DEFAULT '',
+            assignment_reason varchar(190) NOT NULL DEFAULT '',
+            assignment_warning varchar(255) NOT NULL DEFAULT '',
             status varchar(30) NOT NULL DEFAULT 'pending',
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
@@ -107,6 +118,21 @@ class AMILU67_SDS_DB {
             KEY substitute_slot (substitute_teacher_id,substitution_date,period),
             KEY status (status),
             KEY source_absence_id (source_absence_id)
+        ) $charset;";
+
+
+        $sql[] = "CREATE TABLE {$this->tables['recovery']} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            teacher_id bigint(20) unsigned NOT NULL,
+            hours_due decimal(5,2) NOT NULL DEFAULT 1.00,
+            due_date date NULL,
+            note varchar(255) NOT NULL DEFAULT '',
+            active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY teacher_active (teacher_id,active),
+            KEY due_date (due_date)
         ) $charset;";
 
         foreach ( $sql as $query ) {
@@ -143,14 +169,36 @@ class AMILU67_SDS_DB {
                 continue;
             }
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration between plugin-owned custom tables.
-            $wpdb->query(
-                $wpdb->prepare(
-                    'INSERT IGNORE INTO %i SELECT * FROM %i',
-                    $new_table,
-                    $legacy_table
-                )
-            );
+            // La 1.3.0 aggiunge colonne a docenti e sostituzioni: per queste tabelle
+            // copiamo esplicitamente solo le colonne comuni delle build precedenti.
+            if ( 'teachers' === $suffix ) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration between plugin-owned custom tables.
+                $wpdb->query(
+                    $wpdb->prepare(
+                        'INSERT IGNORE INTO %i (id,code,first_name,last_name,email,active,created_at,updated_at) SELECT id,code,first_name,last_name,email,active,created_at,updated_at FROM %i',
+                        $new_table,
+                        $legacy_table
+                    )
+                );
+            } elseif ( 'substitutions' === $suffix ) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration between plugin-owned custom tables.
+                $wpdb->query(
+                    $wpdb->prepare(
+                        'INSERT IGNORE INTO %i (id,source_absence_id,substitution_date,period,start_time,end_time,class_name,absent_teacher_id,substitute_teacher_id,subject,room,note,status,created_at,updated_at) SELECT id,source_absence_id,substitution_date,period,start_time,end_time,class_name,absent_teacher_id,substitute_teacher_id,subject,room,note,status,created_at,updated_at FROM %i',
+                        $new_table,
+                        $legacy_table
+                    )
+                );
+            } else {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time migration between plugin-owned custom tables.
+                $wpdb->query(
+                    $wpdb->prepare(
+                        'INSERT IGNORE INTO %i SELECT * FROM %i',
+                        $new_table,
+                        $legacy_table
+                    )
+                );
+            }
         }
 
         if ( false === get_option( 'amilu67_sds_settings', false ) ) {
@@ -170,7 +218,10 @@ class AMILU67_SDS_DB {
             'name_format'     => 'surname_initial',
             'show_pending'    => 0,
             'screen_note'     => '',
-            'consider_free'   => 0,
+            'consider_free'   => 0, // Legacy: non usato dalla 1.3.0.
+            'allow_freed_class' => 1,
+            'support_policy'    => 'warn',
+            'priority_order'    => array( 'recovery', 'disposition', 'potenziamento', 'freed', 'extra' ),
             'accent'          => '#0066cc',
         );
         return wp_parse_args( (array) get_option( 'amilu67_sds_settings', array() ), $defaults );
@@ -240,13 +291,28 @@ class AMILU67_SDS_DB {
         }
 
         $existing = $this->get_teacher_by_code( $code );
+        $post_type = sanitize_key( $data['post_type'] ?? ( $existing['post_type'] ?? 'common' ) );
+        if ( ! in_array( $post_type, array( 'common', 'support' ), true ) ) {
+            $post_type = 'common';
+        }
+        $employment_type = sanitize_key( $data['employment_type'] ?? ( $existing['employment_type'] ?? 'full_time' ) );
+        if ( ! in_array( $employment_type, array( 'full_time', 'part_time', 'coe' ), true ) ) {
+            $employment_type = 'full_time';
+        }
         $row = array(
-            'code'       => $code,
-            'first_name' => sanitize_text_field( $data['first_name'] ?? '' ),
-            'last_name'  => sanitize_text_field( $data['last_name'] ?? '' ),
-            'email'      => sanitize_email( $data['email'] ?? '' ),
-            'active'     => isset( $data['active'] ) ? (int) (bool) $data['active'] : 1,
-            'updated_at' => $now,
+            'code'               => $code,
+            'first_name'         => sanitize_text_field( $data['first_name'] ?? '' ),
+            'last_name'          => sanitize_text_field( $data['last_name'] ?? '' ),
+            'email'              => sanitize_email( $data['email'] ?? '' ),
+            'post_type'          => $post_type,
+            'employment_type'    => $employment_type,
+            'weekly_hours'       => max( 0, min( 40, (float) ( $data['weekly_hours'] ?? ( $existing['weekly_hours'] ?? 18 ) ) ) ),
+            'other_school'       => sanitize_text_field( $data['other_school'] ?? ( $existing['other_school'] ?? '' ) ),
+            'extra_hours_opt_in' => isset( $data['extra_hours_opt_in'] ) ? (int) (bool) $data['extra_hours_opt_in'] : (int) ( $existing['extra_hours_opt_in'] ?? 0 ),
+            'max_extra_weekly'   => max( 0, min( 12, (float) ( $data['max_extra_weekly'] ?? ( $existing['max_extra_weekly'] ?? 6 ) ) ) ),
+            'notes'              => sanitize_text_field( $data['notes'] ?? ( $existing['notes'] ?? '' ) ),
+            'active'             => isset( $data['active'] ) ? (int) (bool) $data['active'] : 1,
+            'updated_at'         => $now,
         );
 
         if ( $existing ) {
@@ -269,6 +335,8 @@ class AMILU67_SDS_DB {
         $wpdb->delete( $this->tables['schedule'], array( 'teacher_id' => $id ), array( '%d' ) );
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
         $wpdb->delete( $this->tables['teacher_absences'], array( 'teacher_id' => $id ), array( '%d' ) );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        $wpdb->delete( $this->tables['recovery'], array( 'teacher_id' => $id ), array( '%d' ) );
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
         $wpdb->query(
@@ -282,7 +350,7 @@ class AMILU67_SDS_DB {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
         $wpdb->query(
             $wpdb->prepare(
-                "UPDATE %i SET substitute_teacher_id = NULL, status = 'pending', updated_at = %s WHERE substitute_teacher_id = %d AND status = 'assigned'",
+                "UPDATE %i SET substitute_teacher_id = NULL, assignment_type = '', assignment_reason = '', assignment_warning = '', status = 'pending', updated_at = %s WHERE substitute_teacher_id = %d AND status = 'assigned'",
                 $this->tables['substitutions'],
                 $now,
                 $id
@@ -305,7 +373,7 @@ class AMILU67_SDS_DB {
             'class_name' => sanitize_text_field( $row['class_name'] ?? '' ),
             'subject'    => sanitize_text_field( $row['subject'] ?? '' ),
             'room'       => sanitize_text_field( $row['room'] ?? '' ),
-            'activity'   => in_array( $row['activity'] ?? 'lesson', array( 'lesson', 'availability' ), true ) ? $row['activity'] : 'lesson',
+            'activity'   => in_array( $row['activity'] ?? 'lesson', self::schedule_activity_keys(), true ) ? $row['activity'] : 'lesson',
             'updated_at' => $now,
         );
 
@@ -648,7 +716,7 @@ class AMILU67_SDS_DB {
         $wpdb->query(
             $wpdb->prepare(
                 "UPDATE %i
-                 SET status = 'not_required', substitute_teacher_id = NULL, updated_at = %s
+                 SET status = 'not_required', substitute_teacher_id = NULL, assignment_type = '', assignment_reason = '', assignment_warning = '', updated_at = %s
                  WHERE substitution_date = %s AND class_name = %s AND period BETWEEN %d AND %d AND status IN ('pending','assigned')",
                 $this->tables['substitutions'],
                 current_time( 'mysql' ),
@@ -720,6 +788,9 @@ class AMILU67_SDS_DB {
                     array(
                         'status'                => 'cancelled',
                         'substitute_teacher_id' => null,
+                        'assignment_type'       => '',
+                        'assignment_reason'     => '',
+                        'assignment_warning'    => '',
                         'updated_at'            => current_time( 'mysql' ),
                     ),
                     array( 'id' => (int) $existing_row['id'] )
@@ -766,6 +837,9 @@ class AMILU67_SDS_DB {
                     $data['status'] = $status;
                     if ( $is_class_absent ) {
                         $data['substitute_teacher_id'] = null;
+                        $data['assignment_type'] = '';
+                        $data['assignment_reason'] = '';
+                        $data['assignment_warning'] = '';
                     }
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
                     $wpdb->update( $this->tables['substitutions'], $data, array( 'id' => (int) $existing['id'] ) );
@@ -905,7 +979,7 @@ class AMILU67_SDS_DB {
         return $row ?: null;
     }
 
-    public function assign_substitute( int $substitution_id, ?int $teacher_id, string $note = '' ): bool {
+    public function assign_substitute( int $substitution_id, ?int $teacher_id, string $note = '', array $meta = array() ): bool {
         global $wpdb;
         $status = $teacher_id ? 'assigned' : 'pending';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
@@ -915,6 +989,9 @@ class AMILU67_SDS_DB {
                 'substitute_teacher_id' => $teacher_id ?: null,
                 'status'                => $status,
                 'note'                  => sanitize_text_field( $note ),
+                'assignment_type'       => $teacher_id ? sanitize_key( $meta['type'] ?? '' ) : '',
+                'assignment_reason'     => $teacher_id ? sanitize_text_field( $meta['reason'] ?? '' ) : '',
+                'assignment_warning'    => $teacher_id ? sanitize_text_field( $meta['warning'] ?? '' ) : '',
                 'updated_at'            => current_time( 'mysql' ),
             ),
             array( 'id' => $substitution_id )
@@ -953,6 +1030,169 @@ class AMILU67_SDS_DB {
                 $period
             )
         );
+    }
+
+
+    public static function schedule_activity_keys(): array {
+        return array( 'lesson', 'availability', 'disposition', 'potenziamento', 'potenziamento_disponibile', 'recovery', 'extra', 'compresenza', 'other_service', 'not_available' );
+    }
+
+    public static function schedule_activity_labels(): array {
+        return array(
+            'lesson'                     => 'Lezione',
+            'availability'               => 'Disponibilità legacy (trattata come disposizione)',
+            'disposition'                => 'Disposizione contrattuale',
+            'potenziamento'              => 'Potenziamento programmato',
+            'potenziamento_disponibile'  => 'Potenziamento utilizzabile',
+            'recovery'                   => 'Recupero permesso breve',
+            'extra'                      => 'Disponibilità ore eccedenti',
+            'compresenza'                => 'Compresenza',
+            'other_service'              => 'Servizio altra sede/scuola',
+            'not_available'              => 'Non disponibile',
+        );
+    }
+
+    public function add_recovery_account( int $teacher_id, float $hours_due, ?string $due_date, string $note = '' ): int {
+        global $wpdb;
+        if ( $teacher_id < 1 || $hours_due <= 0 ) {
+            return 0;
+        }
+        $date = $due_date && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $due_date ) ? $due_date : null;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        $wpdb->insert(
+            $this->tables['recovery'],
+            array(
+                'teacher_id' => $teacher_id,
+                'hours_due'  => min( 99, $hours_due ),
+                'due_date'   => $date,
+                'note'       => sanitize_text_field( $note ),
+                'active'     => 1,
+                'created_at' => current_time( 'mysql' ),
+                'updated_at' => current_time( 'mysql' ),
+            )
+        );
+        return (int) $wpdb->insert_id;
+    }
+
+    public function delete_recovery_account( int $id ): bool {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        return (bool) $wpdb->delete( $this->tables['recovery'], array( 'id' => $id ), array( '%d' ) );
+    }
+
+    public function list_recovery_accounts( ?int $teacher_id = null, bool $active_only = true ): array {
+        global $wpdb;
+        $where = array();
+        $args = array( $this->tables['recovery'], $this->tables['teachers'] );
+        if ( $teacher_id ) {
+            $where[] = 'r.teacher_id = %d';
+            $args[] = $teacher_id;
+        }
+        if ( $active_only ) {
+            $where[] = 'r.active = 1';
+        }
+        $sql = 'SELECT r.*, t.first_name, t.last_name, t.code FROM %i r INNER JOIN %i t ON t.id = r.teacher_id';
+        if ( $where ) {
+            $sql .= ' WHERE ' . implode( ' AND ', $where );
+        }
+        $sql .= ' ORDER BY COALESCE(r.due_date,\'9999-12-31\'), t.last_name, t.first_name';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        return $wpdb->get_results( $wpdb->prepare( $sql, ...$args ), ARRAY_A ) ?: array();
+    }
+
+    public function recovery_status( int $teacher_id, ?string $as_of = null ): array {
+        global $wpdb;
+        $as_of = $as_of && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $as_of ) ? $as_of : wp_date( 'Y-m-d' );
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        $obligations = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT hours_due, due_date, created_at FROM %i WHERE teacher_id = %d AND active = 1 ORDER BY COALESCE(due_date, '9999-12-31'), created_at, id",
+                $this->tables['recovery'],
+                $teacher_id
+            ),
+            ARRAY_A
+        ) ?: array();
+
+        if ( ! $obligations ) {
+            return array( 'due' => 0.0, 'used' => 0.0, 'remaining' => 0.0, 'due_date' => null, 'overdue' => false );
+        }
+
+        $due = 0.0;
+        $since = (string) $obligations[0]['created_at'];
+        foreach ( $obligations as $obligation ) {
+            $due += (float) $obligation['hours_due'];
+        }
+
+        $used = $this->assigned_hours_for_type_since( $teacher_id, 'recovery', $since );
+        $to_consume = $used;
+        $next_due_date = null;
+        foreach ( $obligations as $obligation ) {
+            $hours = (float) $obligation['hours_due'];
+            if ( $to_consume >= $hours ) {
+                $to_consume -= $hours;
+                continue;
+            }
+            $next_due_date = ! empty( $obligation['due_date'] ) ? (string) $obligation['due_date'] : null;
+            break;
+        }
+
+        $remaining = max( 0.0, $due - $used );
+        return array(
+            'due'       => $due,
+            'used'      => min( $due, $used ),
+            'remaining' => $remaining,
+            'due_date'  => $remaining > 0 ? $next_due_date : null,
+            'overdue'   => $remaining > 0 && $next_due_date && $next_due_date < $as_of,
+        );
+    }
+
+    private function assigned_hours_for_type_since( int $teacher_id, string $type, string $since ): float {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        return (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time THEN TIME_TO_SEC(TIMEDIFF(end_time,start_time))/3600 ELSE 1 END),0) FROM %i WHERE substitute_teacher_id = %d AND assignment_type = %s AND status = 'assigned' AND CONCAT(substitution_date,' 23:59:59') >= %s",
+                $this->tables['substitutions'],
+                $teacher_id,
+                $type,
+                $since
+            )
+        );
+    }
+
+    public function weekly_extra_hours( int $teacher_id, string $date ): float {
+        global $wpdb;
+        $ts = strtotime( $date . ' 12:00:00' );
+        $weekday = (int) wp_date( 'N', $ts );
+        $monday = wp_date( 'Y-m-d', strtotime( '-' . ( $weekday - 1 ) . ' days', $ts ) );
+        $sunday = wp_date( 'Y-m-d', strtotime( '+6 days', strtotime( $monday . ' 12:00:00' ) ) );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        return (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time THEN TIME_TO_SEC(TIMEDIFF(end_time,start_time))/3600 ELSE 1 END),0) FROM %i WHERE substitute_teacher_id = %d AND assignment_type = 'extra' AND status = 'assigned' AND substitution_date BETWEEN %s AND %s",
+                $this->tables['substitutions'],
+                $teacher_id,
+                $monday,
+                $sunday
+            )
+        );
+    }
+
+    public function teacher_weekly_service_hours( int $teacher_id ): float {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Custom plugin tables; live operational data.
+        return (float) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COALESCE(SUM(CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time THEN TIME_TO_SEC(TIMEDIFF(end_time,start_time))/3600 ELSE 1 END),0) FROM %i WHERE teacher_id = %d AND activity IN ('lesson','availability','disposition','potenziamento','potenziamento_disponibile','recovery','compresenza','other_service')",
+                $this->tables['schedule'],
+                $teacher_id
+            )
+        );
+    }
+
+    public function teacher_weekly_service_slots( int $teacher_id ): int {
+        return (int) round( $this->teacher_weekly_service_hours( $teacher_id ) );
     }
 
     public function count_today_dashboard( string $date ): array {
